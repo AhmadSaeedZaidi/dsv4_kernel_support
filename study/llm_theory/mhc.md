@@ -41,6 +41,7 @@ where the terms are described below.
 
 ## Manifold-Constrained Residual Mapping
 **Constraints from the paper:**
+
 $$ 
 B_l \in M := {M \in R^{n \times n}} | \sum_{row = 1}^{n} M_{row} = 1, \sum_{col = 1}^{n} M_{col} = 1, M_{element} \ge 0
 $$
@@ -48,6 +49,7 @@ each $B_l$ belongs to a family of matrices M.
 
 M is $n\times n$ matrix
 such that each element >= 0 and the sum of each row and each column is less than 1.
+
 $$ 
 A_l, C_l \in A, C:= R^{1\times n},R^{n\times1} | A_{element} \ge 0, C_{element} \ge 0
 $$
@@ -71,3 +73,37 @@ where $\sigma(\cdot)$ is elementwise sigmoid and $\epsilon>0$ is a small floor t
 - **Identity initilization $2\cdot \sigma(\cdot)$ :** Initially during training, weight matrices are initialized to small value close to zero. $\sigma(0) \approx 0.5$. Thus multiplication by 2 initializes $C_l$ close to identity.
 
 - **Non-Zero Floor $+\epsilon$ :** A projects 4 lanes into 1 lane. If an element in $A_l$ is ever exactly 0 (can be caused by floating point rounding, especially at low bit quantizations), the lane is disconnected from the next layers during forward pass, and previous layers during backprop. Thus we add a small off-set to ensure this doesn't occour.
+
+## Dynamic Parameterization
+
+the parameters of A,B, and C matrices (linear mappings) are dynamically generated, using static and dynamic components.
+
+$$
+\hat{X_l} = RMSNorm(vec(X_l)) \in R^{1 \times n_{hc} \cdot d}
+$$
+
+where $vec(X_l) \in R^{1 \times n_{hc} \cdot d}$ is a flattening operation on $ X_l \in R^{n_{hc} \times d} $
+
+and RMSNorm is the operation:
+$$
+RMSNorm(x) = \frac{x}{RMS(x)} = \frac{x}{\sqrt{\frac{1}{n}\sum_{i=1}^{n} x_i^2 + \epsilon}}
+$$
+
+read more here [pytorch RMSNorm](https://docs.pytorch.org/docs/2.12/generated/torch.nn.modules.normalization.RMSNorm.html)
+
+$$
+\~A_l = \alpha_l^{pre} \cdot \hat{X_l} W_l^{pre} + S_l^{pre}
+$$
+
+$$
+\~B_l = \alpha_l^{res} \cdot Mat(\hat{X_l} W_l^{res}) + S_l^{res}
+$$
+
+$$
+\~C_l = \alpha_l^{post} \cdot \hat{X_l} W_l^{post} + S_l^{post}
+$$
+
+$$
+W_l^{pre} , W_l^{post} \in R^{n_{hc}\cdot d \times n_{hc}}, \qquad W_l^{res} \in R^{n_{hc} \cdot d \times n_{hc}^2}
+$$
+these W matrices are learnable weights for generating dynamic components.
