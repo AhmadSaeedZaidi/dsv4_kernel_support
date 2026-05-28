@@ -6,7 +6,7 @@ Motivation: residual skips help gradients flow (since $x_{l+1}' = F'(x_l) + I$).
 
 ## Standard hyper-connection
 
-The MHC layer is written compactly as
+The HC layer is written compactly as
 
 $$
 X_{l+1} = B_l X_l + C_l\,F_l\big(A_l X_l\big)
@@ -16,11 +16,13 @@ where the terms are described below.
 
 ## Components
 
-- `X_l`, `X_{l+1}`: input and output of layer $l$. Typically `X_l` has dimension $4d$ (i.e. 4 lanes of embeddings).
-- $A_l$: projection that squeezes the $4d$ input into a single $d$-sized lane. Shapes (applied as $A_l X_l$):  $A_l:\ (d, 4d)$, $X_l:\ (4d,1)$ → result $(d,1)$. Effect: compress 4 lanes into 1.
-- $F_l(\cdot)$: the expensive compute block (e.g. MoE or multi-head attention) that operates on the compressed $(d,1)$ lane and returns $(d,1)$.
-- $C_l$: expansion (or coloring) matrix that maps the $(d,1)$ output of $F_l$ back to $(4d,1)$. Shape: $C_l:\ (4d,d)$, so $C_l\,F_l(A_l X_l)$ has shape $(4d,1)$.
-- $B_l$: bypass mixing matrix applied directly to the original $4d$ lanes. Shape: $B_l:\ (4d,4d)$; it mixes the bypassed input before adding to the expanded path.
+- `X_l`, `X_{l+1}`: input and output of layer $l$. Typically `X_l` has shape $(n_{hc}, d)$.
+- $n_{hc}$: the number of hyper-connection lanes.
+- $d$: the embedding width.
+- $A_l$: projection that squeezes the $n_{hc}$ lanes into a single lane. Shape: $A_l:\ (1, n_{hc})$, so $A_l X_l$ has shape $(1, d)$. Effect: compress many lanes into 1.
+- $F_l(\cdot)$: the expensive compute block (e.g. MoE or multi-head attention) that operates on the compressed $(1, d)$ lane and returns $(1, d)$.
+- $C_l$: expansion (or coloring) matrix that maps the $(1, d)$ output of $F_l$ back to $(n_{hc}, d)$. Shape: $C_l:\ (n_{hc}, 1)$, so $C_l\,F_l(A_l X_l)$ has shape $(n_{hc}, d)$.
+- $B_l$: bypass mixing matrix applied directly to the original $n_{hc}$ lanes. Shape: $B_l:\ (n_{hc}, n_{hc})$; it mixes the bypassed input before adding to the expanded path.
 ## Why
 - we make a massive dimension d = 7168, each value in this vector is a feature of the token
 - we use multi-head attention, each head in the 7168 embedding tries to learn a single group of features (grammer, semantics, context), and they fuse at the end using some kind of projection. After a lot of $+x$ operations, the output stiffens (100 layers of operations meld into 1 brown turd)
@@ -30,9 +32,14 @@ where the terms are described below.
 
 - The ordering of linear ops shown above is convenient for exposition; implementations often fuse projections or use learned channel-wise gates.
 - Using a single compressed lane for the heavy block reduces compute and memory compared with applying the block to all lanes.
-- Replace or tune the shapes ($4d$ and $d$) to match your model's lane count and embedding dimension.
+- Replace or tune the shapes ($n_{hc}$ and $d$) to match your model's lane count and embedding dimension.
 
 ## Quick reference
 
 - Equation: $X_{l+1} = B_l X_l + C_l F_l(A_l X_l)$
-- Typical shapes: $X_l:\ (4d,1)$, $A_l:\ (d,4d)$, $F_l:\ (d,1)\to(d,1)$, $C_l:\ (4d,d)$, $B_l:\ (4d,4d)$
+- Typical shapes: $X_l:\ (n_{hc}, d)$, $A_l:\ (1, n_{hc})$, $F_l:\ (1, d)\to(1, d)$, $C_l:\ (n_{hc}, 1)$, $B_l:\ (n_{hc}, n_{hc})$
+
+## MHC
+$$ 
+B \in M := {M \in R^{n \times n}} | \sum_{row = 1}^{n} M_{row} = 1, \sum_{col = 1}^{n} M_{col} = 1, M_{element} \ge 1
+$$
