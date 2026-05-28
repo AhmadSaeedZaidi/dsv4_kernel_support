@@ -42,9 +42,10 @@ where the terms are described below.
 ## Manifold-Constrained Residual Mapping
 **Constraints from the paper:**
 
-$$ 
+$$
 B_l \in M := {M \in R^{n \times n}} | \sum_{row = 1}^{n} M_{row} = 1, \sum_{col = 1}^{n} M_{col} = 1, M_{element} \ge 0
 $$
+
 each $B_l$ belongs to a family of matrices M.
 
 M is $n\times n$ matrix
@@ -55,20 +56,22 @@ A_l, C_l \in A, C:= R^{1\times n},R^{n\times1} | A_{element} \ge 0, C_{element} 
 $$
 
 **Hardware activations (implementation notes)**:
+
 $$
 A_l = \sigma(\~A_l) + \epsilon,\qquad C_l = 2\cdot\sigma(\~C_l),
 $$
+
 where $\~A_l$ and $\~C_l$ are the raw, unnormalized parameters, and $\sigma(\cdot)$ is elementwise sigmoid and $\epsilon>0$ is a small floor to avoid exact zeros in hardware.
 
 
 ## Why
-- **Non_Explosiveness $ ||B_l||_2 \le 1$ :** spectral norm of the matrix. This ensures the multiplication with B can never be increasing. Safe for forward pass and gradient backprop, avoids exploding values after 100+ of layers of transformation. Formal definition of spectral norm here: [spectral norm](https://mathworld.wolfram.com/SpectralNorm.html)
+- **Non_Explosiveness $||B_l||_2 \le 1$ :** spectral norm of the matrix. This ensures the multiplication with B can never be increasing. Safe for forward pass and gradient backprop, avoids exploding values after 100+ of layers of transformation. Formal definition of spectral norm here: [spectral norm](https://mathworld.wolfram.com/SpectralNorm.html)
 
-- **Closure Under Multiplication $ \forall M_1, M_2 \in M \Rightarrow  (M_1*M_2) \in M$ :** This just means that as multiplication by various matrices M stack, the resulting matrice is from the set M, and has the same restrictions/properties. This ensures B is well behaved over hundreds of layers, where these transformations by B will stack many times.
+- **Closure Under Multiplication $\forall M_1, M_2 \in M \Rightarrow  (M_1*M_2) \in M$ :** This just means that as multiplication by various matrices M stack, the resulting matrice is from the set M, and has the same restrictions/properties. This ensures B is well behaved over hundreds of layers, where these transformations by B will stack many times.
 
 - **Non-Negative Bounding $A_{element},C_{element}, B_{element} \ge 0$ :** Since these matrices also stack additively, this constraint ensures they don't cause destructive interference over hundreds of layers. Without this, features could overwrite or negate each other (once more, the goal is stability across 100+ layers)
 
-- **Bounded Magnitudes $ \sigma(\cdot) \le 1 $:**   The sigmoid function enforces strict upper boundaries. $A_l$ is bounded near $1$, and $C_l$ is bounded at $2$ (notice equation given above). This gives the network the ability to safely scale the lanes without risking infinite amplification
+- **Bounded Magnitudes $\sigma(\cdot) \le 1 $:**   The sigmoid function enforces strict upper boundaries. $A_l$ is bounded near $1$, and $C_l$ is bounded at $2$ (notice equation given above). This gives the network the ability to safely scale the lanes without risking infinite amplification
 
 - **Identity initilization $2\cdot \sigma(\cdot)$ :** Initially during training, weight matrices are initialized to small value close to zero. $\sigma(0) \approx 0.5$. Thus multiplication by 2 initializes $C_l$ close to identity.
 
