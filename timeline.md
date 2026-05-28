@@ -18,3 +18,6 @@ dispatched by:
 - explained the manifold constraints applies to the residual mapping in new deepseek v4 mHC [manifold constraint](study/llm_theory/mhc.md#manifold-constrained-residual-mapping)
 - explained the dynamic mappings for the parameters of the mHC [dynamic parameterization](study/llm_theory/mhc.md#dynamic-parameterization)
 - explained how the manifold constraints are implemented in the dynamic parameterization [parameter constraints](study/llm_theory/mhc.md#parameter-constraints-and-regularization)
+
+## 5/29: studying how the GPU kernels work
+- [GPU optimization notes](study/gpu_theory/hc_pre.md)

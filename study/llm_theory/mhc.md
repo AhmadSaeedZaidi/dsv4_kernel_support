@@ -106,7 +106,7 @@ $$
 $$
 
 $$
-\~B_l = \alpha_l^{res} \cdot Mat(\hat{X_l} W_l^{res}) + S_l^{res}
+\~B_l = \alpha_l^{comb} \cdot Mat(\hat{X_l} W_l^{comb}) + S_l^{comb}
 $$
 
 $$
@@ -114,16 +114,16 @@ $$
 $$
 
 $$
-W_l^{pre} , W_l^{post} \in R^{n_{hc}\cdot d \times n_{hc}}, \qquad W_l^{res} \in R^{n_{hc} \cdot d \times n_{hc}^2}
+W_l^{pre} , W_l^{post} \in R^{n_{hc}\cdot d \times n_{hc}}, \qquad W_l^{comb} \in R^{n_{hc} \cdot d \times n_{hc}^2}
 $$
 these W matrices are learnable weights for generating dynamic components.
 
 ## Components
 - $\~{A_l}, \~{B_l}, \~{C_l}$: the raw, unnormalized parameters for the A, B, and C matrices.
-- $\alpha_l^{pre}, \alpha_l^{res}, \alpha_l^{post}$: learnable scalar parameters that control the influence of the dynamic components for A, B, and C respectively.
-- $S_l^{pre}, S_l^{res}, S_l^{post}$: learnable static parameters for A, B, and C respectively.
-- $W_l^{pre}, W_l^{res}, W_l^{post}$: learnable weight matrices that project the normalized input $\hat{X_l}$ into the dynamic components for A, B, and C respectively.
-- $Mat(\cdot)$: a reshaping operation that converts the output of $\hat{X_l} W_l^{res} \in R^{1 \times n_{hc}^2}$ into $Mat(\hat{X_l} W_l^{res}) \in R^{n_{hc} \times n_{hc}}$.
+- $\alpha_l^{pre}, \alpha_l^{comb}, \alpha_l^{post}$: learnable scalar parameters that control the influence of the dynamic components for A, B, and C respectively.
+- $S_l^{pre}, S_l^{comb}, S_l^{post}$: learnable static parameters for A, B, and C respectively.
+- $W_l^{pre}, W_l^{comb}, W_l^{post}$: learnable weight matrices that project the normalized input $\hat{X_l}$ into the dynamic components for A, B, and C respectively.
+- $Mat(\cdot)$: a reshaping operation that converts the output of $\hat{X_l} W_l^{comb} \in R^{1 \times n_{hc}^2}$ into $Mat(\hat{X_l} W_l^{comb}) \in R^{n_{hc} \times n_{hc}}$.
 
 ## Why
 
@@ -139,13 +139,13 @@ these W matrices are learnable weights for generating dynamic components.
 
 - **Flattening $vec(X_l)$:** this allows the dynamic parameter generation to consider interactions across all lanes and embedding dimensions, enabling more complex and informed routing decisions.
 
-- **Reshape $Mat(\hat{X_l} W_l^{res})$:** this is needed to match the shape of the B matrix, which is $n_{hc} \times n_{hc}$, allowing it to properly mix the hyper-connection lanes based on the dynamic input.
+- **Reshape $Mat(\hat{X_l} W_l^{comb})$:** this is needed to match the shape of the B matrix, which is $n_{hc} \times n_{hc}$, allowing it to properly mix the hyper-connection lanes based on the dynamic input.
 
 ## Hardware Considerations
 $$ 
  W_l^{fused}​∈R^{(n_{hc}​⋅d)×(n_{hc}​+n_{hc}^2​+n_{hc}​)}
 $$
-- The three separate matrix multiplications for generating $\~A_l$, $\~B_l$, and $\~C_l$ can be fused into a single large matrix multiplication with a fused weight matrix $W_l^{fused} = (W_l^{pre},W_l^{res},W_l^{post})$  that concatenates the individual weight matrices. This is more efficient on GPU hardware, as it reduces the number of separate operations and allows better utilization of the GPU's parallel processing capabilities.
+- The three separate matrix multiplications for generating $\~A_l$, $\~B_l$, and $\~C_l$ can be fused into a single large matrix multiplication with a fused weight matrix $W_l^{fused} = (W_l^{pre},W_l^{comb},W_l^{post})$  that concatenates the individual weight matrices. This is more efficient on GPU hardware, as it reduces the number of separate operations and allows better utilization of the GPU's parallel processing capabilities.
 
 # Parameter Constraints and Regularization
 
