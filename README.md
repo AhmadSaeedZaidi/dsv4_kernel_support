@@ -30,7 +30,13 @@ Suggested next steps
 - Document observations and kernel-design tradeoffs in `study/`.
 
 Notes
+
+- Please visit [math notation guide](notation.md) for understanding the mathematical expressions used in the notes.
+
 - This repository is for personal study and demonstration; it is not intended as a multi-contributor project. The README intentionally omits a "Contributing" section.
+
+- I want this repo to be readable and educational for others who are interested in GPU kernel development for LLM optimizations, so I will focus on clear explanations and documentation of the concepts and code, of both the model-level design and the GPU implementation details.
+
 
 License
 - See the [LICENSE](LICENSE) file in the repo root.
