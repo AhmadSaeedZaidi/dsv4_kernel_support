@@ -4,7 +4,7 @@ Replaces the standard residual skip connection $x_{l+1} = F(x_l) + x_l$ with a s
 
 Motivation: residual skips help gradients flow (since $x_{l+1}' = F'(x_l) + I$). MHC generalizes this by (1) projecting multiple lanes into a smaller compute lane, (2) applying a heavy block (MoE/Attention) there, and (3) redistributing the result back to the full lane dimension.
 
-## Standard hyper-connection
+# Standard hyper-connection
 
 The HC layer is written compactly as
 
@@ -39,7 +39,7 @@ where the terms are described below.
 - Equation: $X_{l+1} = B_l X_l + C_l F_l(A_l X_l)$
 - Typical shapes: $X_l:\ (n_{hc}, d)$, $A_l:\ (1, n_{hc})$, $F_l:\ (1, d)\to(1, d)$, $C_l:\ (n_{hc}, 1)$, $B_l:\ (n_{hc}, n_{hc})$
 
-## Manifold-Constrained Residual Mapping
+# Manifold-Constrained Residual Mapping
 **Constraints from the paper:**
 
 $$
@@ -55,13 +55,20 @@ $$
 A_l, C_l \in A, C:= R^{1\times n},R^{n\times1} | A_{element} \ge 0, C_{element} \ge 0
 $$
 
+
 **Hardware activations (implementation notes)**:
 
 $$
 A_l = \sigma(\~A_l) + \epsilon,\qquad C_l = 2\cdot\sigma(\~C_l),
 $$
 
-where $\~A_l$ and $\~C_l$ are the raw, unnormalized parameters, and $\sigma(\cdot)$ is elementwise sigmoid and $\epsilon>0$ is a small floor to avoid exact zeros in hardware.
+thus:
+
+$$ 
+A_l, C_l \in A, C:= R^{1\times n},R^{n\times1} | A_{element} \le 1, C_{element} \le 2
+$$
+
+where $\~A_l$ and $\~C_l$ are the raw, unnormalized parameters, and $\sigma(\cdot)$ is elementwise sigmoid and $\epsilon>0$ is a small floor to avoid exact zeros in hardware. This will be explained further in [Parameter Constraints and Regularization](#parameter-constraints-and-regularization) section below.
 
 
 ## Why
@@ -77,7 +84,7 @@ where $\~A_l$ and $\~C_l$ are the raw, unnormalized parameters, and $\sigma(\cdo
 
 - **Non-Zero Floor $+\epsilon$ :** A projects 4 lanes into 1 lane. If an element in $A_l$ is ever exactly 0 (can be caused by floating point rounding, especially at low bit quantizations), the lane is disconnected from the next layers during forward pass, and previous layers during backprop. Thus we add a small off-set to ensure this doesn't occour.
 
-## Dynamic Parameterization
+# Dynamic Parameterization
 
 the parameters of A,B, and C matrices (linear mappings) are dynamically generated, using static and dynamic components.
 
@@ -139,3 +146,45 @@ $$
  W_l^{fused}​∈R^{(n_{hc}​⋅d)×(n_{hc}​+n_{hc}^2​+n_{hc}​)}
 $$
 - The three separate matrix multiplications for generating $\~A_l$, $\~B_l$, and $\~C_l$ can be fused into a single large matrix multiplication with a fused weight matrix $W_l^{fused} = (W_l^{pre},W_l^{res},W_l^{post})$  that concatenates the individual weight matrices. This is more efficient on GPU hardware, as it reduces the number of separate operations and allows better utilization of the GPU's parallel processing capabilities.
+
+# Parameter Constraints and Regularization
+
+this was discussed previously, the constraints on A and B are achieved through sigmoid activations:
+$$
+A_l = \sigma(\~A_l) + \epsilon,\qquad C_l = 2\cdot\sigma(\~C_l)
+$$
+
+$$\sigma(x) = \frac{1}{1 + e^{-x}} $$
+
+and the following is how to enforce the constraints we defined for the B matrix (non-explosiveness, closure under multiplication, non-negative bounding, bounded magnitudes, identity initialization):
+
+$$
+M^{(0)} = Softmax(\~B_l)
+$$
+the initial raw matrix before normalization. Softmax is applied to ensure non-negativity, one of our constraints.
+$$
+M^{(t)} = \mathscr{T}_r( \mathscr{T}_c(M^{(t-1)}))
+$$
+
+where $\mathscr{T}_r$ and $\mathscr{T}_c$ are the row-wise and column-wise normalization operators, respectively. 
+
+This operation diverges to $B_l = M^{(t_{max})}$, using the iterative Sinkhorn-Knopp algorithm.
+
+in the paper $t_{max} = 20$ for practicality.
+
+## The Sinkhorn-Knopp Algorithm
+Very simple.
+1. Start with the raw matrix $M^{(0)}$ obtained by applying a softmax to $\~B_l$ to ensure non-negativity.
+2. Iteratively normalize the matrix:
+$$    
+M_{element} = \frac{M_{element}}{\sum_{row} M_{row}} \quad (\bold{i.}\text{ row-wise normalization})
+$$
+
+$$
+M_{element} = \frac{M_{element}}{\sum_{col} M_{col}} \quad (\bold{ii.} \text{ column-wise normalization})
+$$
+3. After (i), matrix is normalized across rows, but not columns. after (ii), matrix is normalized across columns, but not rows. After each iteration, matrix grows closer to full constraint.
+4. Usually, algorithm runs until $|\Sigma_{row}^n M_{row} - 1| \approx |\Sigma_{col}^n M_{col} - 1| \le \Delta$ where $\Delta = 10^{-6}$, or some small threshold. But on gpu, loops with variable exit conditions are horrible for performance. So we set a fixed number of iterations, eg. 20.
+
+## Why
+- **Sigmoid function $\sigma$:** The sigmoid function creates a smooth, differentiable mapping $\sigma(x) \in R | 0 \le \sigma(x) \le 1$ that enforces the non-negativity and upper bound constraints on A and C.

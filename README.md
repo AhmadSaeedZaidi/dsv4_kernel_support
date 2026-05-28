@@ -8,7 +8,7 @@ Primary objective
 
 Key references (in-repo)
 - [DeepSeek V4 paper / notes](DeepSeek_V4.pdf)
-- [MHC theory & notes](study/llm_theory/mhc.md)
+- [LLM theory & notes](study/llm_theory/)
 - [GPU optimizations (split-K, tiling)](study/gpu_theory/)
 - [Reference code: mhc_pre.py](study/source_code/mhc_pre.py)
 - [Progress timeline](timeline.md)
