@@ -13,3 +13,6 @@ dispatched by:
 
 ## 5/28: studying how mhc works
 - [mhc notes](study/llm_theory/mhc.md)
+
+- explained how standard hyper channel residuals work (deepseek v3)
+- explained the manifold constraints applies to the residual mapping in new deepseek v4 mHC [manifold constraint](study/llm_theory/mhc.md#manifold-constrained-residual-mapping)
