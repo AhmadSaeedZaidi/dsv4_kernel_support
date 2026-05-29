@@ -176,7 +176,8 @@ in the paper $t_{max} = 20$ for practicality.
 Very simple.
 1. Start with the raw matrix $M^{(0)}$ obtained by applying a softmax to $\~B_l$ to ensure non-negativity.
 2. Iteratively normalize the matrix:
-$$    
+
+$$
 M_{element} = \frac{M_{element}}{\sum_{row} M_{row}} \quad (\bold{i.}\text{ row-wise normalization})
 $$
 

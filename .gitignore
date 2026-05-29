@@ -1,0 +1,79 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C/C++/CUDA build artifacts
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.ptx
+*.cubin
+*.linkinfo
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+
+# CUDA intermediate
+*.cu.o
+
+# Python virtualenvs
+venv/
+env/
+.venv/
+.env
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# VSCode
+.vscode/
+.history/
+
+# PyTest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Thumbnails
+thumbs.db
+
+# Temporary files
+*.swp
+*~
+
+# Ignore compiled Python extensions
+*.so
+
+# Local project settings
+.local_config
+
+# TVM / FlashInfer caches
+*.tvm*
+
+# Ignore any large data/outputs
+data/
+outputs/
+

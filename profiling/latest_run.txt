@@ -1,0 +1,251 @@
+cd /home/ahmadsaeed/code/gpu/dsv4_kernel_support/profiling && modal run profile_mhc_agent.py 2>&1
+✓ Initialized. View run at 
+https://modal.com/apps/ahmadsaeedzaidi/main/ap-2a4vhdIwR3ph0qEUn1d66M
+
+
+✓ Created objects.
+├── 🔨 Created mount 
+│   /home/ahmadsaeed/code/gpu/dsv4_kernel_support/profiling/profile_mhc_agent.py
+├── 🔨 Created mount 
+│   /home/ahmadsaeed/code/gpu/dsv4_kernel_support/study/source_code/PR_3285_file
+│   s
+└── 🔨 Created function profile.
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.4.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+
+==============================================================================
+>>> GPU
+>>> $ nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+==============================================================================
+name, driver_version, memory.total [MiB]
+NVIDIA H100 80GB HBM3, 580.95.05, 81559 MiB
+
+>>> [GPU] exit_code=0
+
+==============================================================================
+>>> nvcc
+>>> $ bash -lc which nvcc && nvcc --version | tail -3
+==============================================================================
+/usr/local/cuda/bin/nvcc
+Built on Thu_Mar_28_02:18:24_PDT_2024
+Cuda compilation tools, release 12.4, V12.4.131
+Build cuda_12.4.r12.4/compiler.34097967_0
+
+>>> [nvcc] exit_code=0
+
+##############################################################################
+# Overlaying local PR_3285_files -> /opt/flashinfer
+##############################################################################
+  [dir ] csrc/mhc -> csrc/mhc
+  [file] flashinfer/mhc.py -> flashinfer/mhc.py
+  [file] flashinfer/jit/mhc.py -> flashinfer/jit/mhc.py
+  [file] flashinfer/trace/templates/mhc.py -> flashinfer/trace/templates/mhc.py
+  [file] benchmarks/bench_mhc_pre_big_fuse.py -> benchmarks/bench_mhc_pre_big_fuse.py
+  [file] benchmarks/bench_mhc_post.py -> benchmarks/bench_mhc_post.py
+  [dir ] tests/mhc -> tests/mhc
+
+# Overlaid kernel fingerprints (sha256, first 16 hex):
+  648534ca272b9081  csrc/mhc/mhc_pre_big_fuse.cu
+  204fa3ba67eeb3da  csrc/mhc/mhc_post.cu
+
+##############################################################################
+# CORRECTNESS GATE (pytest tests/mhc vs reference)
+##############################################################################
+
+==============================================================================
+>>> pytest tests/mhc
+>>> $ /usr/local/bin/python -m pytest -q --no-header tests/mhc
+==============================================================================
+..........................                                               [100%]
+26 passed in 9.43s
+
+>>> [pytest tests/mhc] exit_code=0
+>>> CORRECTNESS: PASS (rc=0)
+
+==============================================================================
+>>> LATENCY SWEEP: mhc_pre_big_fuse (cold-L2)
+>>> $ /usr/local/bin/python benchmarks/bench_mhc_pre_big_fuse.py --sequence-lengths 1 128 4096 --hidden-sizes 4096 7168 --num-splits 1 --max-rotations 64
+==============================================================================
+      mode     N     H splits cold_l2   rot  iters       avg us
+---------------------------------------------------------------
+      pure     1  4096      1    True    64    200        6.536
+   prenorm     1  4096      1    True    64    200        8.300
+      pure   128  4096      1    True    21    200        7.099
+   prenorm   128  4096      1    True    21    200       11.849
+      pure  4096  4096      1    True     1    200       57.312
+   prenorm  4096  4096      1    True     1    200       88.922
+      pure     1  7168      1    True    64    200        6.588
+   prenorm     1  7168      1    True    64    200        9.439
+      pure   128  7168      1    True    13    200        7.365
+   prenorm   128  7168      1    True    13    200       15.105
+      pure  4096  7168      1    True     1    200       97.035
+   prenorm  4096  7168      1    True     1    200      171.652
+
+>>> [LATENCY SWEEP: mhc_pre_big_fuse (cold-L2)] exit_code=0
+
+==============================================================================
+>>> LATENCY SWEEP: mhc_post
+>>> $ /usr/local/bin/python benchmarks/bench_mhc_post.py --sequence-lengths 1 128 4096 --hidden-sizes 4096 7168
+==============================================================================
+    N     H  HC    median us      mean us
+-----------------------------------------
+    1  4096   4        5.904        6.486
+  128  4096   4        9.344        9.337
+ 4096  4096   4      106.496      106.511
+    1  7168   4        8.544        8.547
+  128  7168   4       13.120       13.166
+ 4096  7168   4      179.648      179.609
+
+>>> [LATENCY SWEEP: mhc_post] exit_code=0
+
+##############################################################################
+# DERIVED HBM BANDWIDTH (algorithmic-min bytes / measured latency)
+# H100 SXM5 HBM3 peak = 3350 GB/s; BW% valid only for working set > 64 MB
+##############################################################################
+                  kernel      N      H     lat_us     WS_MB      GB/s   %peak
+------------------------------------------------------------------------------
+            mhc_pre_pure      1   4096       6.54       0.0    (<=L2)  lat-bd
+         mhc_pre_prenorm      1   4096       8.30       0.0    (<=L2)  lat-bd
+            mhc_pre_pure    128   4096       7.10       5.3    (<=L2)  lat-bd
+         mhc_pre_prenorm    128   4096      11.85       5.3    (<=L2)  lat-bd
+            mhc_pre_pure   4096   4096      57.31     168.5    2940.2    87.8
+         mhc_pre_prenorm   4096   4096      88.92     168.5    1894.8    56.6
+            mhc_pre_pure      1   7168       6.59       0.1    (<=L2)  lat-bd
+         mhc_pre_prenorm      1   7168       9.44       0.1    (<=L2)  lat-bd
+            mhc_pre_pure    128   7168       7.37       9.2    (<=L2)  lat-bd
+         mhc_pre_prenorm    128   7168      15.11       9.2    (<=L2)  lat-bd
+            mhc_pre_pure   4096   7168      97.03     294.3    3033.3    90.5
+         mhc_pre_prenorm   4096   7168     171.65     294.3    1714.6    51.2
+                mhc_post      1   4096       5.90       0.1    (<=L2)  lat-bd
+                mhc_post    128   4096       9.34       9.4    (<=L2)  lat-bd
+                mhc_post   4096   4096     106.50     302.3    2838.8    84.7
+                mhc_post      1   7168       8.54       0.1    (<=L2)  lat-bd
+                mhc_post    128   7168      13.12      16.5    (<=L2)  lat-bd
+                mhc_post   4096   7168     179.65     528.8    2943.6    87.9
+------------------------------------------------------------------------------
+
+##############################################################################
+# STATIC RESOURCE USAGE (cuobjdump --dump-resource-usage)
+##############################################################################
+
+==============================================================================
+>>> flashinfer JIT dirs
+>>> $ /usr/local/bin/python -c from flashinfer.jit import env as e;print('FLASHINFER_WORKSPACE_DIR=', e.FLASHINFER_WORKSPACE_DIR);print('FLASHINFER_JIT_DIR=', e.FLASHINFER_JIT_DIR)
+==============================================================================
+FLASHINFER_WORKSPACE_DIR= /root/.cache/flashinfer/0.6.12/90a
+FLASHINFER_JIT_DIR= /root/.cache/flashinfer/0.6.12/90a/cached_ops
+
+>>> [flashinfer JIT dirs] exit_code=0
+
+==============================================================================
+>>> locate mHC .so
+>>> $ bash -lc for d in /cache /root/.cache /root/.flashinfer ~/.cache /tmp /opt; do find "$d" -name '*.so' 2>/dev/null; done | grep -i mhc | sort -u
+==============================================================================
+/root/.cache/flashinfer/0.6.12/90a/cached_ops/mhc/mhc.so
+
+>>> [locate mHC .so] exit_code=0
+  target .so: /root/.cache/flashinfer/0.6.12/90a/cached_ops/mhc/mhc.so
+
+==============================================================================
+>>> cuobjdump (/usr/local/cuda/bin/cuobjdump)
+>>> $ /usr/local/cuda/bin/cuobjdump --dump-resource-usage /root/.cache/flashinfer/0.6.12/90a/cached_ops/mhc/mhc.so
+==============================================================================
+
+
+Fatbin elf code:
+================
+arch = sm_90a
+code version = [1,7]
+host = linux
+compile_size = 64bit
+compressed
+
+Resource usage:
+ Common:
+  GLOBAL:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_token_vec_kernelILi1ELi8ELb0ELl0EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:92 STACK:0 SHARED:1104 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_token_vec_kernelILi1ELi4ELb0ELl0EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:84 STACK:0 SHARED:1104 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_split_vec_kernelILi160ELi1280ELl0EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:80 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_token_vec_kernelILi4ELi4ELb1ELl0EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:94 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_token_vec_kernelILi4ELi3ELb1ELl0EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:80 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722634mhc_post_bf16_hc4_token_vec_kernelILi1ELi4ELb0ELl7168EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:86 STACK:0 SHARED:1104 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722645mhc_post_bf16_hc4_persistent_split_vec_kernelILi128ELi1024ELi2048ELl7168EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:71 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722645mhc_post_bf16_hc4_persistent_split_vec_kernelILi128ELi1024ELi2048ELl4096EEEvPK13__nv_bfloat16S5_PKfS7_PS3_ll:
+  REG:71 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc44_GLOBAL__N__86b5ff62_11_mhc_post_cu_848d722631mhc_post_bf16_hc4_scalar_kernelEPK13__nv_bfloat16S4_PKfS6_PS2_ll:
+  REG:38 STACK:0 SHARED:0 LOCAL:0 CONSTANT[0]:584 TEXTURE:0 SURFACE:0 SAMPLER:0
+
+Fatbin elf code:
+================
+arch = sm_90a
+code version = [1,7]
+host = linux
+compile_size = 64bit
+compressed
+
+Resource usage:
+ Common:
+  GLOBAL:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi128ELb1EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:40 STACK:0 SHARED:1056 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi256ELb1EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:38 STACK:0 SHARED:1072 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi512ELb1EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:38 STACK:0 SHARED:1104 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi16ELi128ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:38 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi16ELi256ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:38 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi16ELi512ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:38 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi8ELi128ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:40 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi8ELi256ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:40 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi8ELi512ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi4ELi128ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi4ELi256ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi4ELi512ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi2ELi128ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi2ELi256ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi2ELi512ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi128ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi256ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+ Function _ZN10flashinfer3mhc52_GLOBAL__N__255d816f_19_mhc_pre_big_fuse_cu_6a2282c323mhc_pre_big_fuse_kernelILi1ELi512ELb0EEEvPKfS4_PK13__nv_bfloat16S4_S4_PfS8_PS5_iiiffffi:
+  REG:32 STACK:0 SHARED:1040 LOCAL:0 CONSTANT[0]:624 TEXTURE:0 SURFACE:0 SAMPLER:0
+
+>>> [cuobjdump (/usr/local/cuda/bin/cuobjdump)] exit_code=0
+
+>>> profiling run complete.
+Stopping app - local entrypoint completed.
+✓ App completed. View run at 
+https://modal.com/apps/ahmadsaeedzaidi/main/ap-2a4vhdIwR3ph0qEUn1d66M
