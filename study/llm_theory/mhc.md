@@ -145,7 +145,7 @@ these W matrices are learnable weights for generating dynamic components.
 $$ 
  W_l^{fused}​∈R^{(n_{hc}​⋅d)×(n_{hc}​+n_{hc}^2​+n_{hc}​)}
 $$
-- The three separate matrix multiplications for generating $\~A_l$, $\~B_l$, and $\~C_l$ can be fused into a single large matrix multiplication with a fused weight matrix $W_l^{fused} = (W_l^{pre},W_l^{comb},W_l^{post})$  that concatenates the individual weight matrices. This is more efficient on GPU hardware, as it reduces the number of separate operations and allows better utilization of the GPU's parallel processing capabilities.
+- The three separate matrix multiplications for generating $\~A_l$, $\~B_l$, and $\~C_l$ can be fused into a single large matrix multiplication with a fused weight matrix $W_l^{fused} = [W_l^{pre};W_l^{comb};W_l^{post}]$  that concatenates the individual weight matrices. This is more efficient on GPU hardware, as it reduces the number of separate operations and allows better utilization of the GPU's parallel processing capabilities.
 
 # Parameter Constraints and Regularization
 
