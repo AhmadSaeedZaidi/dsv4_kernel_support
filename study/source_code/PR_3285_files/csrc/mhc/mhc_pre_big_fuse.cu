@@ -98,11 +98,74 @@ __device__ __forceinline__ float residual_square_sum_vec8(const __nv_bfloat16* r
   return sum;
 }
 
-// Metadata generation (pre/post/comb) is split into two phases and inlined into
-// the kernel so that the long Sinkhorn iteration (warp 0) can overlap the
-// bandwidth-bound layer_input reduction (warps 1+). The per-lane mix slice is
-// kept in scalar registers instead of a dynamically-indexed local array, which
-// removes the 96-byte stack spill the monolithic helper incurred.
+// Computes the per-token mHC mix coefficients for one hyper-connection lane
+// (lanes 0..kHc4-1): the pre-mix gate, post-mix gate, and the Sinkhorn-Knopp
+// normalized comb-mix row. Used by the portable (non-Hopper) code path; the
+// Hopper path inlines a register-resident two-phase equivalent in the kernel.
+__device__ __forceinline__ void write_token_metadata(
+    const float* y_local, float rstd, const float* mhc_scale, const float* mhc_base,
+    float* post_mix, float* comb_mix, float* pre_mix, float mhc_pre_eps, float mhc_sinkhorn_eps,
+    float mhc_post_mult_value, int sinkhorn_repeat) {
+  const int lane = threadIdx.x & (kWarpThreads - 1);
+  float cm[kHc4];
+
+  const float scale_pre = mhc_scale[0];
+  const float scale_post = mhc_scale[1];
+  const float scale_comb = mhc_scale[2];
+
+  float v = y_local[lane] * rstd * scale_pre + mhc_base[lane];
+  pre_mix[lane] = 1.0f / (1.0f + expf(-v)) + mhc_pre_eps;
+
+  v = y_local[kHc4 + lane] * rstd * scale_post + mhc_base[kHc4 + lane];
+  post_mix[lane] = 1.0f / (1.0f + expf(-v)) * mhc_post_mult_value;
+
+#pragma unroll
+  for (int k = 0; k < kHc4; ++k) {
+    cm[k] = y_local[2 * kHc4 + lane * kHc4 + k] * rstd * scale_comb +
+            mhc_base[2 * kHc4 + lane * kHc4 + k];
+  }
+
+  constexpr unsigned kLaneMask = (1u << kHc4) - 1;
+  float row_max = fmaxf(fmaxf(cm[0], cm[1]), fmaxf(cm[2], cm[3]));
+#pragma unroll
+  for (int k = 0; k < kHc4; ++k) {
+    cm[k] = expf(cm[k] - row_max);
+  }
+  float row_sum = cm[0] + cm[1] + cm[2] + cm[3];
+#pragma unroll
+  for (int k = 0; k < kHc4; ++k) {
+    cm[k] = cm[k] / row_sum + mhc_sinkhorn_eps;
+  }
+
+#pragma unroll
+  for (int k = 0; k < kHc4; ++k) {
+    float col_sum = cm[k];
+    col_sum += __shfl_xor_sync(kLaneMask, col_sum, 1);
+    col_sum += __shfl_xor_sync(kLaneMask, col_sum, 2);
+    cm[k] /= (col_sum + mhc_sinkhorn_eps);
+  }
+
+  for (int it = 1; it < sinkhorn_repeat; ++it) {
+    row_sum = cm[0] + cm[1] + cm[2] + cm[3] + mhc_sinkhorn_eps;
+#pragma unroll
+    for (int k = 0; k < kHc4; ++k) {
+      cm[k] /= row_sum;
+    }
+
+#pragma unroll
+    for (int k = 0; k < kHc4; ++k) {
+      float col_sum = cm[k];
+      col_sum += __shfl_xor_sync(kLaneMask, col_sum, 1);
+      col_sum += __shfl_xor_sync(kLaneMask, col_sum, 2);
+      cm[k] /= (col_sum + mhc_sinkhorn_eps);
+    }
+  }
+
+#pragma unroll
+  for (int k = 0; k < kHc4; ++k) {
+    comb_mix[lane * kHc4 + k] = cm[k];
+  }
+}
 
 template <int BLOCK_SIZE>
 __device__ __forceinline__ void write_layer_input(const __nv_bfloat16* residual,
@@ -168,14 +231,19 @@ __launch_bounds__(BLOCK_SIZE) __global__ void mhc_pre_big_fuse_kernel(
     sq_total = block_sum<BLOCK_SIZE>(local_sq, sq_partials);
   }
 
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 900)
+  // Hopper (sm_90) fast path. Two optimizations over the portable path:
+  //   1. The lane's 6-element mix slice is held in scalar/constant-indexed
+  //      registers rather than a lane-indexed local array, eliminating the
+  //      96-byte stack spill that gated the metadata-producing warp.
+  //   2. pre_mix (the only coefficient the reduction consumes) is published
+  //      before the barrier, so the 20-iteration Sinkhorn projection on warp 0
+  //      overlaps the bandwidth-bound layer_input reduction on warps 1+.
   const bool meta_lane = (warp_id == 0 && lane < kHc4);
-  // Live across the barrier so phase 2 (post/comb) can run after pre_mix is
-  // published; scalar/constant-indexed regs only -> no local-memory spill.
   float rstd = 0.0f;
   float y_post = 0.0f;
   float cmv[kHc4];
 
-  // ---- Phase 1: rstd + pre_mix (the only metadata the reduction depends on).
   if (meta_lane) {
     float y_pre = 0.0f;
 #pragma unroll
@@ -215,8 +283,6 @@ __launch_bounds__(BLOCK_SIZE) __global__ void mhc_pre_big_fuse_kernel(
 
   __syncthreads();
 
-  // ---- Phase 2 (warp 0): post_mix + Sinkhorn comb_mix, overlapping the
-  // bandwidth-bound reduction performed by warps 1+ below.
   if (meta_lane) {
     const float vp = y_post * rstd * mhc_scale[1] + mhc_base[kHc4 + lane];
     post_mix[static_cast<long long>(token) * kHc4 + lane] =
@@ -266,6 +332,45 @@ __launch_bounds__(BLOCK_SIZE) __global__ void mhc_pre_big_fuse_kernel(
       comb_mix[static_cast<long long>(token) * kHc4 * kHc4 + lane * kHc4 + k] = cmv[k];
     }
   }
+#else
+  // Portable path (all non-Hopper architectures): unchanged from the original
+  // implementation, validated only on H100 in this change.
+  if (warp_id == 0 && lane < kHc4) {
+    float y_local[kMixHc4];
+    if constexpr (NUM_SPLITS == 1) {
+      if constexpr (!COMPUTE_SQRSUM) {
+        sq_total = sqrsum[token];
+      }
+      const float* y_row = dot_mix + static_cast<long long>(token) * kMixHc4;
+#pragma unroll
+      for (int c = 0; c < kMixHc4; ++c) {
+        y_local[c] = y_row[c];
+      }
+    } else {
+      sq_total = 0.0f;
+#pragma unroll
+      for (int c = 0; c < kMixHc4; ++c) {
+        y_local[c] = 0.0f;
+      }
+#pragma unroll
+      for (int s = 0; s < NUM_SPLITS; ++s) {
+        sq_total += sqrsum[s * total_tokens + token];
+        const float* y_row = dot_mix + (static_cast<long long>(s) * total_tokens + token) * kMixHc4;
+#pragma unroll
+        for (int c = 0; c < kMixHc4; ++c) {
+          y_local[c] += y_row[c];
+        }
+      }
+    }
+
+    const float rstd = rsqrtf(sq_total / static_cast<float>(K) + rms_eps);
+    write_token_metadata(y_local, rstd, mhc_scale, mhc_base, post_mix + token * kHc4,
+                         comb_mix + token * kHc4 * kHc4, pre_mix, mhc_pre_eps, mhc_sinkhorn_eps,
+                         mhc_post_mult_value, sinkhorn_repeat);
+  }
+
+  __syncthreads();
+#endif
 
   write_layer_input<BLOCK_SIZE>(residual_token, pre_mix,
                                 layer_input + static_cast<long long>(token) * H, H);
