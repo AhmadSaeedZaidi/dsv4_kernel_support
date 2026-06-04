@@ -1,23 +1,21 @@
 # mHC Kernel Profiling & Optimization Report (PR #3285)
 
-Target: the two mHC CUDA kernels in `flashinfer` PR #3285 — `mhc_pre_big_fuse`
-and `mhc_post` — profiled and optimized on an H100 80GB (SXM5, HBM3) via Modal.
+Target: the two mHC CUDA kernels in `flashinfer` PR #3285  `mhc_pre_big_fuse`
+and `mhc_post`  profiled and optimized on an H100 80GB (SXM5, HBM3) via Modal.
 Shapes: DeepSeek-V4 **Flash** (`H=4096`) and **Pro** (`H=7168`), `HC=4`, bf16.
 
-Harness: [`profiling/profile_mhc_agent.py`](../../profiling/profile_mhc_agent.py).
-Correctness gate: the PR's own `tests/mhc` (reference-comparison, rel-norm < 0.6%) —
+Harness: [`profiling/profile_mhc_agent.py`](../../profiling/profile_mhc_agent.py). A script that runs the code on modal.
+Correctness: the PR's own `tests/mhc` (reference-comparison, rel-norm < 0.6%) are robust (the PR was merged to main)
 **26/26 pass before and after** every change.
 
 ---
 
 ## 1. Measurement methodology
 
-Nsight Compute hardware counters are **unavailable on Modal**: the GPU sandbox does
-not expose the PerfWorks driver interface (`Failed to initialize the profiler:
+Nsight Compute hardware counters are **unavailable on Modal**: the GPU sandbox does not expose the PerfWorks driver interface (`Failed to initialize the profiler:
 LibraryNotLoaded`; no `ERR_NVGPUCTRPERM`), and the fix requires host-kernel
-`NVreg_RestrictProfilingToAdminUsers=0` + reboot — impossible in managed containers.
-Modal's docs concur (use torch.profiler / Nsight Systems). We therefore use a
-sandbox-safe, rigorous stack:
+`NVreg_RestrictProfilingToAdminUsers=0` + reboot is impossible in managed containers.
+Modal's docs concur (use torch.profiler / Nsight Systems). We therefore use a workaround:
 
 1. **Measured latency** (authoritative) — the PR benchmarks (`torch.profiler`
    self-time for pre, `bench_gpu_time` for post), cold-L2 rotation for pre.
@@ -49,7 +47,7 @@ around the heavy block $F_l$:
   - `comb_mix` $= B_l$ = Sinkhorn-Knopp doubly-stochastic $4\times4$ (softmax + 20 row/col norms)
   - `layer_input` $= A_l X_l = \sum_j \mathrm{pre}[j]\cdot\mathrm{residual}[j] \to [N,H]$
   - **1 CTA / token**; warp 0 lanes 0–3 do metadata, warps 1+ do the reduction.
-- **`mhc_post`** is the epilogue: `out[new,h] = x[h]·C[new] + Σ_old residual[old,h]·B[old,new]`.
+- **`mhc_post`** is the processing after attention block: `out[new,h] = x[h]·C[new] + Σ_old residual[old,h]·B[old,new]`.
   Pure elementwise, **HBM-bandwidth bound** (~`18·N·H` bytes).
 
 ---

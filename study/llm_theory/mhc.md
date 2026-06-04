@@ -178,11 +178,11 @@ Very simple.
 2. Iteratively normalize the matrix:
 
 $$
-M_{element} = \frac{M_{element}}{\sum_{row} M_{row}} \quad (\bold{i.}\text{ row-wise normalization})
+M_{element} = \frac{M_{element}}{\sum_{row} M_{row}} \quad (\text{i. row-wise normalization})
 $$
 
 $$
-M_{element} = \frac{M_{element}}{\sum_{col} M_{col}} \quad (\bold{ii.} \text{ column-wise normalization})
+M_{element} = \frac{M_{element}}{\sum_{col} M_{col}} \quad (\text{ii. column-wise normalization})
 $$
 3. After (i), matrix is normalized across rows, but not columns. after (ii), matrix is normalized across columns, but not rows. After each iteration, matrix grows closer to full constraint.
 4. Usually, algorithm runs until $|\Sigma_{row}^n M_{row} - 1| \approx |\Sigma_{col}^n M_{col} - 1| \le \Delta$ where $\Delta = 10^{-6}$, or some small threshold. But on gpu, loops with variable exit conditions are horrible for performance. So we set a fixed number of iterations, eg. 20.

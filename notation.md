@@ -34,6 +34,9 @@ because the inner dimensions (the n's) must match for multiplication to be valid
 - When you see $A X$, it means matrix multiplication, which involves summing over the products of rows of A and columns of X.
 - When you see $A \odot X$, it means element-wise multiplication, where you multiply each corresponding element of A and X together without any summation.
 
+## Element-wise Division
+- $A \oslash B$ denotes element-wise division between two matrices A and B of the same shape. Each element in the resulting matrix is the quotient of the corresponding elements in A and B. For example, if $A = \begin{bmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{bmatrix}$ and $B = \begin{bmatrix} b_{11} & b_{12} \\ b_{21} & b_{22} \end{bmatrix}$, then $A \oslash B = \begin{bmatrix} \frac{a_{11}}{b_{11}} & \frac{a_{12}}{b_{12}} \\ \frac{a_{21}}{b_{21}} & \frac{a_{22}}{b_{22}} \end{bmatrix}$.
+
 ## Set Notation
 - $M := \{M \in R^{n \times n} | \text{conditions}\}$ means we are defining a set M that contains all matrices of shape $n \times n$ that satisfy the specified conditions. For example, $M := \{M \in R^{n \times n} | M_{element} \ge 0\}$ would be the set of all $n \times n$ matrices with non-negative elements.
 
