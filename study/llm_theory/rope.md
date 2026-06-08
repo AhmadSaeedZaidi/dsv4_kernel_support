@@ -104,7 +104,7 @@ $$
 
 Low $j$ pairs (high frequency) rotate quickly per position step: they resolve near-neighbor position differences. High $j$ pairs (low frequency) rotate slowly — they encode long-range offsets. The geometric progression gives a multi-scale position representation: nearby tokens align on high-frequency pairs while distant tokens only stay aligned on low-frequency pairs. This structure is analogous to the sinusoidal position encoding in the original Transformer.
 
-# The relative property
+# The relative property of rotation matrices
 
 Rotation matrices form a group: $R_j(m)^T R_j(n) = R_j(n-m)$ for each $2 \times 2$ block. Since $R(p)$ is block-diagonal, the same holds for the full matrix:
 
@@ -119,6 +119,8 @@ $$
 $$
 
 The result depends only on the relative offset $(n-m)$, not on $m$ and $n$ individually. The $2 \times 2$ block structure means this holds for each pair independently — no cross-dimensional mixing.
+
+In simpler terms, in the massive matrix multiplication of $Q \cdot K^T$, when token $m$ from Q attends to token $n$ from K, the resultant matrix automatically encodes the relative position $n-m$, through this property. This applies to all pairs of tokens, so the model now has true relative position information baked into the attention scores, without needing to learn it from absolute positions.
 
 # Why
 
