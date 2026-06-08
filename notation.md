@@ -35,7 +35,28 @@ because the inner dimensions (the n's) must match for multiplication to be valid
 - When you see $A \odot X$, it means element-wise multiplication, where you multiply each corresponding element of A and X together without any summation.
 
 ## Element-wise Division
-- $A \oslash B$ denotes element-wise division between two matrices A and B of the same shape. Each element in the resulting matrix is the quotient of the corresponding elements in A and B. For example, if $A = \begin{bmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{bmatrix}$ and $B = \begin{bmatrix} b_{11} & b_{12} \\ b_{21} & b_{22} \end{bmatrix}$, then $A \oslash B = \begin{bmatrix} \frac{a_{11}}{b_{11}} & \frac{a_{12}}{b_{12}} \\ \frac{a_{21}}{b_{21}} & \frac{a_{22}}{b_{22}} \end{bmatrix}$.
+- $A \oslash B$ denotes element-wise division between two matrices A and B of the same shape. Each element in the resulting matrix is the quotient of the corresponding elements in A and B. For example, if $A = \begin{bmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{bmatrix}$ and $B = \begin{bmatrix} b_{11} & b_{12} \\ b_{21} & b_{22} \end{bmatrix}$, then 
+$$
+A \oslash B = 
+\begin{bmatrix} 
+a_{11} / b_{11} & a_{12} / b_{12} \\ 
+a_{21}/b_{21} & a_{22}/b_{22}
+\end{bmatrix}
+$$
+
+### Mismatched Dimensions
+- If you see an expression like $A \oslash X$ where the dimensions of A and X do not match, it typically means that A is being broadcasted to match the shape of X before performing element-wise division. 
+- Broadcasting is a technique that allows operations to be performed on arrays of different shapes by automatically expanding the smaller array along the necessary dimensions. This is often used in computing to simplify notation.
+- For example, if $A = \begin{bmatrix} a_{11} & a_{12} \\ a_{21} & a_{22} \end{bmatrix}$ and $B = \begin{bmatrix} b_{11} \\ b_{21} \end{bmatrix}$, then 
+$$
+A \oslash B = A \oslash [B;B] =
+\begin{bmatrix} 
+a_{11} / b_{11} & a_{12} / b_{11} \\ 
+a_{21}/b_{21} & a_{22}/b_{21}
+\end{bmatrix}
+$$
+
+Here I am using [concatonation](#concatenation-of-matrices) defined below, to match the shape of A by repeating B along the appropriate dimension.
 
 ## Set Notation
 - $M := \{M \in R^{n \times n} | \text{conditions}\}$ means we are defining a set M that contains all matrices of shape $n \times n$ that satisfy the specified conditions. For example, $M := \{M \in R^{n \times n} | M_{element} \ge 0\}$ would be the set of all $n \times n$ matrices with non-negative elements.

@@ -1,8 +1,17 @@
 # Manifold Constraint Hyper Connection (MHC)
 
-Replaces the standard residual skip connection $x_{l+1} = F(x_l) + x_l$ with a structured "hyper-connection" that mixes and routes multiple embedding lanes.
+## Standard Residual Skip Connections
 
-Motivation: residual skips help gradients flow (since $x_{l+1}' = F'(x_l) + I$). MHC generalizes this by (1) projecting multiple lanes into a smaller compute lane, (2) applying a heavy block (MoE/Attention) there, and (3) redistributing the result back to the full lane dimension.
+The standard residual skip connection $x_{l+1} = F(x_l) + x_l$ was a breakthrough in preventing signal loss (vanishing gradient) for deep networks.
+
+Motivation: residual skips help gradients flow (since $x_{l+1}' = F'(x_l) + I$).
+So even if $F'(x_l) \approx 0$, the gradient can still flow through the identity path. This allows training of much deeper networks without vanishing gradients.
+
+Modern deep networks have multiple channels (or lanes) of $X$, each with a full embedding. This allows the model to learn different features in different lanes, and fuse them at the end.
+
+However, this creates challenges in designing skip connections. As discussed above, a skip connection acts as a path for gradient to flow. The model might learn to only use one channel, and ignore the rest.
+
+MHC addresses this by (1) projecting multiple lanes into a smaller compute lane, (2) applying a heavy block (MoE/Attention) there, (3) redistributing the result back to the full lane dimension, and (4) imposing strict constraints on the skip connection to ensure stability across 100+ layers. This creates a structured "hyper-connection" that mixes and routes multiple embedding lanes.
 
 # Standard hyper-connection
 

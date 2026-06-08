@@ -43,17 +43,17 @@ $$S_{ij} = Q_i K_j^T \in \mathbb{R}^{B_r \times B_c}$$
 
 2. Find the local row maximums and compute stable exponentials:
 $$m_{ij} = \text{rowmax}(S_{ij}) \in \mathbb{R}^{B_r}$$
-$$P_{ij} = e^{S_{ij} - m_{ij}} \in \mathbb{R}^{B_r \times B_c}$$
+$$\~{P_{ij}} = e^{S_{ij} - m_{ij}} \in \mathbb{R}^{B_r \times B_c}$$
 
 3. Compute the local row sums of the exponentials:
-$$\ell_{ij} = \text{rowsum}(P_{ij}) \in \mathbb{R}^{B_r}$$
+$$\ell_{ij} = \text{rowsum}(\~{P_{ij}}) \in \mathbb{R}^{B_r}$$
 
 4. Update the global running statistics (Max and Denominator) using the correction factor:
 $$m_i^{\text{new}} = \max(m_i^{\text{old}}, m_{ij})$$
 $$\ell_i^{\text{new}} = \left( e^{m_i^{\text{old}} - m_i^{\text{new}}} \odot \ell_i^{\text{old}} \right) + \left( e^{m_{ij} - m_i^{\text{new}}} \odot \ell_{ij} \right)$$
 
 5. Update the running, unnormalized Output accumulator ($\tilde{O}_i$):
-$$\tilde{O}_i^{\text{new}} = \left( e^{m_i^{\text{old}} - m_i^{\text{new}}} \odot \tilde{O}_i^{\text{old}} \right) + \left( e^{m_{ij} - m_i^{\text{new}}} \odot (P_{ij} V_j) \right) \in \mathbb{R}^{B_r \times d}$$
+$$\tilde{O}_i^{\text{new}} = \left( e^{m_i^{\text{old}} - m_i^{\text{new}}} \odot \tilde{O}_i^{\text{old}} \right) + \left( e^{m_{ij} - m_i^{\text{new}}} \odot (\~{P_{ij}} V_j) \right) \in \mathbb{R}^{B_r \times d}$$
 
 ---
 After the inner loop finishes (all Key/Value blocks $j$ have been processed):
@@ -61,10 +61,10 @@ After the inner loop finishes (all Key/Value blocks $j$ have been processed):
 6. Perform the final Safe Normalization to get the true Attention Output ($O_i$):
 $$O_i = \tilde{O}_i^{\text{final}} \oslash \ell_i^{\text{final}}$$
 
-after each inner step, $O_i$ is rescaled to compensate for the running max update. This is an [element-wise division](../../notation.md#element-wise-division). 
+here, $O_i$ is rescaled to compensate for the running max update. This is an [element-wise division](../../notation.md#element-wise-division). 
 
 ## Components
-
+- $\~{P_{ij}}$: unnormalized attention weights, not yet divided by the row sum for softmax. We normalize after the multiplication with $V_j$ to save memory and compute.
 - $Q_i \in R^{B_r \times d}$: tile $i$ of the query matrix, of block size $B_r$ rows. $i = 1 \dots T_r$ where $T_r = \lceil N / B_r \rceil$.
 - $K_j, V_j \in R^{B_c \times d}$: tile $j$ of the key and value matrices, of block size $B_c$ rows. $j = 1 \dots T_c$ where $T_c = \lceil N / B_c \rceil$.
 - $S_{ij} \in R^{B_r \times B_c}$: block of attention scores between $Q_i$ and $K_j$. Lives only in SRAM, never written to HBM.
@@ -270,20 +270,18 @@ m_1^{\text{final}} = \begin{bmatrix} 10 \\ 15 \end{bmatrix}, \qquad
 \tilde{O}_1^{\text{final}} \approx \begin{bmatrix} 3.768 & 0.320 \\ 1.249 & 1.851 \end{bmatrix}
 $$
 
-### Step 6: final safe normalization (and what $\text{diag}(\cdot)$ actually means here)
+### Step 6: final safe normalization
 
-The output $\tilde{O}_1^{\text{final}}$ is still the *unnormalized* weighted sum of $V$ rows. Each row was scaled by $e^{S - m_1^{\text{final}}}$, so to recover the true softmax-weighted average we divide row $k$ by $\ell_1^{\text{final}}[k]$. The "$\text{diag}(\ell_1)^{-1}$" notation is just a tidy way to write this row-scaling as a left-multiplication by a diagonal matrix:
-
-$$
-\text{diag}(\ell_1^{\text{final}}) = \begin{bmatrix} \ell_1^{\text{final}}[0] & 0 \\ 0 & \ell_1^{\text{final}}[1] \end{bmatrix} = \begin{bmatrix} 1.1876 & 0 \\ 0 & 1.0498 \end{bmatrix}, \qquad
-\text{diag}(\ell_1^{\text{final}})^{-1} = \begin{bmatrix} 1/1.1876 & 0 \\ 0 & 1/1.0498 \end{bmatrix} \approx \begin{bmatrix} 0.8420 & 0 \\ 0 & 0.9526 \end{bmatrix}
-$$
-
-This matrix only has entries on the diagonal, so multiplying it by $\tilde{O}_1^{\text{final}}$ just rescales each row independently — row $0$ gets divided by $\ell_1[0]$, row $1$ gets divided by $\ell_1[1]$. That is exactly the element-wise division $\tilde{O}_1 \oslash \ell_1$ on line $62$, written as a matrix product:
+$\tilde{O}_1^{\text{final}}$ is still the *unnormalized* weighted sum of $V$ rows — each row was scaled by $e^{S - m_1^{\text{final}}}$, with no denominator applied yet. To recover the true softmax-weighted average we divide each row of $\tilde{O}_1$ by the corresponding entry of $\ell_1$. The $\oslash$ on line $62$ is the element-wise version of this: $\ell_1$ is broadcast across the $d$ columns of $\tilde{O}_1$ and each entry in row $k$ gets divided by $\ell_1[k]$.
 
 $$
-O_1 = \text{diag}(\ell_1^{\text{final}})^{-1} \cdot \tilde{O}_1^{\text{final}}
-\approx \begin{bmatrix} 0.8420 & 0 \\ 0 & 0.9526 \end{bmatrix} \begin{bmatrix} 3.768 & 0.320 \\ 1.249 & 1.851 \end{bmatrix}
+O_1 = \tilde{O}_1^{\text{final}} \oslash \ell_1^{\text{final}}
+$$
+
+Plugging in $\tilde{O}_1^{\text{final}} \approx \begin{bmatrix} 3.768 & 0.320 \\ 1.249 & 1.851 \end{bmatrix}$ and $\ell_1^{\text{final}} \approx \begin{bmatrix} 1.1876 \\ 1.0498 \end{bmatrix}$:
+
+$$
+O_1
 \approx \begin{bmatrix} 3.768 / 1.1876 & 0.320 / 1.1876 \\ 1.249 / 1.0498 & 1.851 / 1.0498 \end{bmatrix}
 \approx \begin{bmatrix} 3.173 & 0.270 \\ 1.190 & 1.763 \end{bmatrix}
 $$
@@ -305,7 +303,34 @@ FA2 fixes this: each thread block is assigned a slice of $Q$ (a few $Q_i$ tiles)
 
 # Causal masking
 
-For decoder attention, we don't want query $i$ attending to key $j > i$. There are two ways to handle this.
+For decoder attention, we generally mask the $P$ matrix. Fundamentally, Attention works, by comparing each token to the next token, and forming an $\R^{N\times N}$ matrix. But in generative transformers, we don't want the query to cheat, and look ahead at the answer. We want it to predict based only on past tokens. Thus we mask the $P$ matrix.
+
+$$
+S = Softmax_{row} (P + M)
+$$
+
+where
+
+$$
+M_{ij} = \begin{cases}
+0 & j \le i \\
+-\infty & j > i
+\end{cases}
+$$
+
+for example, if $N = 4$, the mask would look like
+$$
+M = \begin{bmatrix}
+0 & -\infty & -\infty & -\infty \\
+0 & 0 & -\infty & -\infty \\
+0 & 0 & 0 & -\infty \\
+0 & 0 & 0 & 0
+\end{bmatrix}
+$$
+
+this is because, $P_{ij}-\infty = -\infty$ and $e^{-\infty} = 0$, so the masked-out entries contribute nothing to the softmax output.
+
+There two main options for how to implement this in Flash Attention 2:
 
 **Option A: skip masked blocks.** in the inner loop, if the entire $K_j$ block lies in the future, skip it. If it straddles the diagonal, compute it but mask out the upper triangle:
 
@@ -326,7 +351,7 @@ then proceed with the same online softmax. The $-\infty$ entries become $0$ afte
 # Quick reference
 
 - Standard attention: $O = \text{softmax}(QK^T)V$, costs $O(N^2)$ HBM and $O(N^2 d)$ FLOPs.
-- Flash Attention 2: same FLOPs, $O(N d)$ HBM, $O(N^2)$ compute stays the same. The win is purely memory.
+- Flash Attention 2: same FLOPs, $O(N d)$ HBM, $O(N^2)$ compute stays the same. The optimization is memory bound.
 - Inner loop: for each $Q_i$ tile, iterate over all $K_j, V_j$ tiles, maintain $(m_i, \ell_i, O_i)$, apply online softmax merge.
 - Typical shapes: $Q, K, V:\ (N, d)$, $Q_i:\ (B_r, d)$, $K_j, V_j:\ (B_c, d)$, $S_{ij}, P_{ij}:\ (B_r, B_c)$, $O_i:\ (B_r, d)$, $m_i, \ell_i:\ (B_r,)$.
 - Backward pass: re-tile and recompute $S, P$ on the fly. No $N \times N$ saved.
