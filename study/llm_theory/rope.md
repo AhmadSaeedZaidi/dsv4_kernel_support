@@ -184,6 +184,8 @@ $$
 
 Pair $0$ (high frequency $\theta_0 = 1$) rotated significantly; pair $1$ (low frequency $\theta_1 = 0.1$) barely moved. Repeating at $p = 4$ would rotate pair $0$ by another full radian while pair $1$ only changes by $0.1$ rad — pair $0$ encodes fine-grained position, pair $1$ encodes coarse position.
 
+Notice that each rotation, only changes the direction of the vector in that 2D plane, not the magnitude. This is because, by definition, rotation matrices are orthonormal.
+
 # Quick reference
 
 - RoPE applies a block-diagonal rotation $R(p) \in \mathbb{R}^{d \times d}$ to each Q and K vector based on its position $p$.
